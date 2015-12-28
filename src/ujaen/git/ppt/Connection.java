@@ -12,11 +12,12 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
 
+import ujaen.git.ppt.smtp.RFC5322;
 import ujaen.git.ppt.mail.Mail;
+import ujaen.git.ppt.smtp.SMTPMessage;
 import ujaen.git.ppt.mail.Mailbox;
 import ujaen.git.ppt.smtp.RFC5321;
-import ujaen.git.ppt.smtp.RFC5322;
-import ujaen.git.ppt.smtp.SMTPMessage;
+import java.net.InetAddress;
 
 
 public class Connection implements Runnable, RFC5322 {
@@ -42,7 +43,15 @@ public class Connection implements Runnable, RFC5322 {
 	protected String mFrom="";
 	protected String mTo="";
 	protected boolean pMAIL_FROM=false;
-	
+	protected int Nidenteficador = 0;
+	protected String nombrehost = "";
+	Mail mail = null;
+	Mailbox mBox = null;
+	ObtenerDireccionIP obtIP = null;
+	protected String direcIP = null;
+	protected String crearMessID;
+	protected String obtfecha;
+	protected boolean enviarMail = false;
 	
 	public static String MSG_WELCOME = "OK Bienvenido al servidor de pruebas\r\n"; //de lo que esta subido en github
 	
@@ -146,24 +155,181 @@ public class Connection implements Runnable, RFC5322 {
 							}
 							}
 							break;
+							
+						case S_DATA:
+							if (pHELO && pMAIL_FROM && pRCPT_TO) {
+								
+								if(firstExecute)
+								{
+									//lee el ID 
+									BufferedReader leerID = new BufferedReader(new FileReader(fIdentificador));
+									Nidenteficador = Integer.parseInt(leerID.readLine());
+									leerID.close();
+									Nidenteficador++;
+									
+									//se escribe el nombre en el interior de arcivo
+									PrintWriter mostrar = new PrintWriter(fIdentificador, "UTF-8");
+									mostrar.println(Nidenteficador);
+									mostrar.close();
+									
+									//nombre del host
+									InetAddress nombre;
+								    nombre = InetAddress.getLocalHost();
+								    nombrehost = nombre.getHostName();
+								    
+								    //obtenemos la IP
+								    obtIP = new ObtenerDireccionIP(mSocket);
+								    direcIP = obtIP.getIP();
+								    
+								    //creacion de MESSAGE-ID
+								    crearMessID = "<" + Nidenteficador + "@" + nombrehost + ">";
+								    
+								    //obtener fecha
+								    obtfecha = formatofecha.format(fechaactual);
+								    mail = new Mail();
+								    
+								    //metemos algunos de los parametros que hemos ibtenido anteriormente.
+								    mail.setHost(nombrehost);
+								    mail.setMailfrom(mFrom);
+								    mail.setRcptto(mTo);
+								    System.out.println("Rcpt to: " + mTo);
+								    
+								    //por ultimo añadimos las cabeceras
+								    mail.addHeader("Return-Path", mFrom);
+								    mail.addHeader("Received", HELOArguments);
+								    mail.addHeader("host", nombrehost);
+								    mail.addHeader("IP", direcIP);
+								    mail.addHeader("date", obtfecha);
+								    mail.addHeader(" identificador de mensaje (Message-ID)", crearMessID);
+
+								}
+								else
+								{
+									mail.addMailLine(inputData);
+									inputData += CRLF;
+								}
+								
+								if(inputData.compareTo(ENDMSG) == 0)
+								{
+									
+									enviarMail = true;
+									pMAIL_FROM = false;
+									pRCPT_TO = false;
+									mBox = new Mailbox(mail);
+									
+								}
+							}
+							break;	
 						
 						case S_RESET:
-							
+							pMAIL_FROM = false;
+							pRCPT_TO = false;
 							break;
 							
 						case S_QUIT:
-							
+							mFin = true;
 							break;
 						
-					//hay que seguir va?		
+							
 						}
-					}else
+					
 
 					// TODO montar la respuesta
 					// El servidor responde con lo recibido
-					outputData = RFC5321.getReply(RFC5321.R_220) + SP + inputData + CRLF;
-					output.write(outputData.getBytes());
-					output.flush();
+						//aqui creamos otra maquina de estados para gestionar las respuestas en funcion del estado en el que
+						//encontremos. Los formatos de las respuestas se definen en la clase RFC5321 y desde aqui lo que hacemos 
+						//es solamente llamarlas.
+						switch (mEstado)
+						{
+							//si se recibe un comando no valido se le notifica un error al acliente.
+						case S_NOCOMMAND:
+								outputData = RFC5321.getError(RFC5321.E_500_SINTAXERROR) + SP +
+								RFC5321.getErrorMsg(RFC5321.E_500_SINTAXERROR) + CRLF;
+								break;
+							//respuesta del comando HELO
+							case S_HELO:
+								if(!pHELO)
+								{
+									//outputData="250 Hello" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getReply(RFC5321.R_250) + SP +
+									"Hello." + CRLF;
+									pHELO = true;
+								}
+								else
+								{
+									//outputData="503 error de secuencia de comandos" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
+									+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+								}
+								break;
+							//respuesta del comando EHLO
+							case S_EHLO:
+								
+								if(!pHELO)
+								{
+									//outputData="250 Hello" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getReply(RFC5321.R_250) + SP +
+									"Hello." + CRLF;
+									pHELO = true;
+								}
+								else
+								{
+									//outputData="503 error de secuencia de comandos" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
+									+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+								}
+								break;
+								
+							//respuesta del comando MAIL FROM
+							case S_MAIL_FROM:
+								
+								break;
+								
+							//respuesta del comando RCPT TO
+							case S_RCPT_TO:
+								
+								break;
+								
+							// respuesta del comando S_DATA	
+							case S_DATA:
+								
+								break;
+								
+							// respuesta del comando RSET
+							case S_RESET:
+								//outputData="250 Reset" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+								//cogiendo las referencias que hay en la clase RFC5321
+								outputData = RFC5321.getReply(RFC5321.R_250) + SP
+								+ RFC5321.getReplyMsg(RFC5321.R_250) + CRLF;
+								break;
+								
+							//respuesta del comando QUIT
+							case S_QUIT:
+								//outputData="221 Quit" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+								//cogiendo las referencias que hay en la clase RFC5321
+								outputData = RFC5321.getReply(RFC5321.R_221) + SP + 
+								RFC5321.getReplyMsg(RFC5321.R_221) + SP + 
+								RFC5321.MSG_BYE + CRLF;
+								break;
+						}
+						if(!(mEstado == S_DATA && !enviarMail) || (mEstado == S_DATA && firstExecute))
+						{
+							if(firstExecute)
+							{
+								firstExecute = false;
+							}
+							output.write(outputData.getBytes());
+							output.flush();	
+						}
+						
+						
+					//outputData = RFC5321.getReply(RFC5321.R_220) + SP + inputData + CRLF;
+					//output.write(outputData.getBytes());
+					//output.flush();
 
 				}
 				System.out.println("Servidor [Conexión finalizada]> " + mSocket.getInetAddress().toString() + ":" + mSocket.getPort());
