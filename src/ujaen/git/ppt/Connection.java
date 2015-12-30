@@ -108,7 +108,7 @@ public class Connection implements Runnable, RFC5322 {
 					
 					// Todo análisis del comando recibido
 					SMTPMessage m = new SMTPMessage(inputData);
-					//Mail ma = new Mail (inputData);
+					
 					if(mEstado != S_DATA && m.getCommandId()==S_DATA){
 						firstExecute=true;
 					}
@@ -243,8 +243,8 @@ public class Connection implements Runnable, RFC5322 {
 						{
 							//si se recibe un comando no valido se le notifica un error al acliente.
 						case S_NOCOMMAND:
-								outputData = RFC5321.getError(RFC5321.E_500_SINTAXERROR) + SP +
-								RFC5321.getErrorMsg(RFC5321.E_500_SINTAXERROR) + CRLF;
+								outputData = RFC5321.getError(RFC5321.E_500_SINTAXERROR) + SP 
+											 + RFC5321.getErrorMsg(RFC5321.E_500_SINTAXERROR) + CRLF;
 								break;
 							//respuesta del comando HELO
 							case S_HELO:
@@ -253,7 +253,7 @@ public class Connection implements Runnable, RFC5322 {
 									//outputData="250 Hello" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
 									//cogiendo las referencias que hay en la clase RFC5321
 									outputData = RFC5321.getReply(RFC5321.R_250) + SP +
-									"Hello." + CRLF;
+												 "Hello." + CRLF;
 									pHELO = true;
 								}
 								else
@@ -261,7 +261,7 @@ public class Connection implements Runnable, RFC5322 {
 									//outputData="503 error de secuencia de comandos" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
 									//cogiendo las referencias que hay en la clase RFC5321
 									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
-									+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+												+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
 								}
 								break;
 							//respuesta del comando EHLO
@@ -272,7 +272,7 @@ public class Connection implements Runnable, RFC5322 {
 									//outputData="250 Hello" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
 									//cogiendo las referencias que hay en la clase RFC5321
 									outputData = RFC5321.getReply(RFC5321.R_250) + SP +
-									"Hello." + CRLF;
+												 "Hello." + CRLF;
 									pHELO = true;
 								}
 								else
@@ -280,26 +280,89 @@ public class Connection implements Runnable, RFC5322 {
 									//outputData="503 error de secuencia de comandos" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
 									//cogiendo las referencias que hay en la clase RFC5321
 									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
-									+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+												+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
 								}
 								break;
 								
 							//respuesta del comando MAIL FROM
 							case S_MAIL_FROM:
-								
+								//evaluamos pRCPT_TO solo si !pHELO es falso
+								if(!pHELO || pRCPT_TO)
+								{
+									//outputData="503 error de secuencia de comandos" + CLRF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
+												+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+								}
+								else
+								{
+									//outputData="250 Mail From" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getReply(RFC5321.R_250) + SP
+												+ RFC5321.getReplyMsg(RFC5321.R_250) + CRLF;
+								}
 								break;
 								
 							//respuesta del comando RCPT TO
 							case S_RCPT_TO:
-								
+								if(!pHELO || !pMAIL_FROM)
+								{
+									//outputData="503 error de secuencia de comandos" + CLRF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP 
+												+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+								}
+								//si pasamos primero por pHELO despues por pMAIL_FROM y al final estamos en un estado distinto de pRCPT_TO
+								// entonces tenemos un error de usuario no local.
+								else if(pHELO && pMAIL_FROM && !pRCPT_TO)
+								{
+									//outputData="503 error, usuario no local" + CLRF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_551_USERNOTLOCAL) + SP
+												+ RFC5321.getErrorMsg(RFC5321.E_551_USERNOTLOCAL) + CRLF;
+								}
+								//si pasamos primero por pHELO despues por pMAIL_FROM y al final estamos en el estado pRCPT_TO
+								// entonces se cumple bien la condicion
+								else if(pHELO && pMAIL_FROM && pRCPT_TO)
+								{
+									outputData = RFC5321.getReply(RFC5321.R_250) + SP
+												+ RFC5321.getReplyMsg(RFC5321.R_250) + CRLF;
+								}
 								break;
 								
 							// respuesta del comando S_DATA	
 							case S_DATA:
-								
+								//para llegar al caso S_DATA primerp tenemos que pasar, en este orden por,
+								//pHELO, pMAIL_FROM, pRCPT_TO, firstExecute, tenemos que tener la primera ejecucion
+								//para que tenga los argumentos cogidos.
+								if(pHELO && pMAIL_FROM && pRCPT_TO && firstExecute)
+								{
+									//outputData="354 Inicie el envío del correo" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC532
+									outputData = RFC5321.getReply(RFC5321.R_354) + SP
+												+ RFC5321.getReplyMsg(RFC5321.R_354) + CRLF;
+								}
+								else if(pHELO && !pMAIL_FROM && !pRCPT_TO && enviarMail)
+								{
+									//outputData="250 OK" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC532
+									outputData = RFC5321.getReply(RFC5321.R_250) + SP
+									+ "Queued." + CRLF;
+									//para que el usuario pueda continuar realizando otras cosas como volver a enviar un correo cambiamos el estado.
+									enviarMail = false;
+									mEstado = S_NOCOMMAND;
+								}
+								else if(!pMAIL_FROM || !pRCPT_TO)
+								{
+									mEstado = S_NOCOMMAND;
+									//outputData="503 error de secuencia de comandos" + CLRF --> tambien se podria poner asi mas abreviado, pero lo hacemos
+									//cogiendo las referencias que hay en la clase RFC5321
+									outputData = RFC5321.getError(RFC5321.E_503_BADSEQUENCE) + SP
+									+ RFC5321.getErrorMsg(RFC5321.E_503_BADSEQUENCE) + CRLF;
+								}
 								break;
 								
-							// respuesta del comando RSET
+							// respuesta del comando RESET
 							case S_RESET:
 								//outputData="250 Reset" + CRLF --> tambien se podria poner asi mas abreviado, pero lo hacemos
 								//cogiendo las referencias que hay en la clase RFC5321
