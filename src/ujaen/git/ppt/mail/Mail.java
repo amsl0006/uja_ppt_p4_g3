@@ -157,8 +157,45 @@ public class Mail implements RFC5322{
 	}
 
 	
-	public void addHeader(String header, String value) {
+	public void AñadirCabeceras(String cabecera, String valor) {
 		//TODO Método que añada cabeceras al correo
+		//para la cabecera que nos dice desde donde (o quien) nos envia el mensaje
+		if(cabecera.compareTo("send-from") == 0)
+		{
+			mMail += "send-from:" + valor + CRLF;
+		}
+		
+		//para la cabecera que nos dice hacia donde (o quien) se envia el mensaje
+		if(cabecera.compareTo("Received") == 0)
+		{
+			mMail += "Received: from" + valor;
+		}
+		
+		//para la cabecera que nos indica el nombre del host
+		if(cabecera.compareTo("host") == 0)
+		{
+			
+			mMail += "host: " + valor;
+		}
+		
+		//para la cabecera que nos dice la IP
+		if(cabecera.compareTo("IP") == 0)
+		{
+		
+			mMail += "[" + valor + "])" + CRLF;
+		}
+		
+		//para la cabecera que nos proporciona la fecha actual.
+		if(cabecera.compareTo("date") == 0)
+		{
+			mMail += ";" + valor + CRLF;
+		}
+		
+		//para la cabecera que nos proporciona el identificador del mensaje enviado
+		if(cabecera.compareTo("Message-ID") == 0)
+		{
+			mMail += "Message-ID: " + valor + CRLF;
+		}
 		
 	}
 }

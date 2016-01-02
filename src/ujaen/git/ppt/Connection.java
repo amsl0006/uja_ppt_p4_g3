@@ -195,12 +195,12 @@ public class Connection implements Runnable, RFC5322 {
 								    System.out.println("Rcpt to: " + mTo);
 								    
 								    //por ultimo añadimos las cabeceras
-								    mail.addHeader("Return-Path", mFrom);
-								    mail.addHeader("Received", HELOArguments);
-								    mail.addHeader("host", nombrehost);
-								    mail.addHeader("IP", direcIP);
-								    mail.addHeader("date", obtfecha);
-								    mail.addHeader(" identificador de mensaje (Message-ID)", crearMessID);
+								    mail.AñadirCabeceras("send-from", mFrom);
+								    mail.AñadirCabeceras("Received", HELOArguments);
+								    mail.AñadirCabeceras("host", nombrehost);
+								    mail.AñadirCabeceras("IP", direcIP);
+								    mail.AñadirCabeceras("date", obtfecha);
+								    mail.AñadirCabeceras(" identificador de mensaje (Message-ID)", crearMessID);
 
 								}
 								else
