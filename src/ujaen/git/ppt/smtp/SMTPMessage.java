@@ -23,7 +23,67 @@ public class SMTPMessage implements RFC5322 {
 			
 		}
 		else
-			mHasError = parseCommand(data);
+			/*mHasError = parseCommand(data);*/
+		{
+			mHasError = false;
+			//trata de dividir lo que se recibe mediante dos puntos (":") para encontrar comandos como RCPT_TO y MAIL_FROM.
+			//si los campos tienen tamaño 0 siginifica que no se ha introducido ningun comando por lo que lo dividimos
+			//mediante espacios(" ") lo que siginifica que los comandos recibidos son HELO, EHLO, DATA, RESET o QUIT
+			
+			String [] campos = data.split(":");
+			//aqui comprobamos si se trata de un comando RCPT_TO o MAIL_FROM. 
+			if(data.length() < 4)
+			{
+				mCommandId = checkCommand(data);
+				mArguments = null;
+			}
+			else if(campos.length == 2)
+			{
+				//comprobamos si el comando es correcto, sino se guardara un -1 in mCommandId
+				//y si es correcto se asociara a un codigo.
+		
+				
+				if(campos[0].length() > 4)
+				{
+					mCommandId = checkCommand(campos[0]);
+					mArguments = data.substring(campos[0].length() + 1, data.length());
+				}
+				else
+				{
+					mCommandId = RFC5321.C_NOCOMMAND;
+					mArguments = null;
+				}
+			}
+			// si el string de entrada (el mesaje recibido) contiene mas de dos separaciones de ":", es un mensaje no valido
+			
+			else if(campos.length > 2)
+			{
+				mCommandId = checkCommand(campos[0]);
+				mArguments = null;
+			}
+			else
+			{
+				mCommandId = checkCommand(data.substring(0, 4));
+				if(data.length() > 4 && (mCommandId == RFC5321.C_HELO || mCommandId == RFC5321.C_EHLO))
+				{
+					//si el quinto caracter no es un espacio " ", es un mensaje no valido
+					if(data.substring(4,5).equalsIgnoreCase(" ") == false)
+					{
+						mCommandId = RFC5321.C_NOCOMMAND;
+						mArguments = null;
+					}
+					else
+					{
+						mArguments = data.substring(4, data.length());
+					}
+				}
+				else if(data.length() > 4)
+				{
+					mCommandId = RFC5321.C_NOCOMMAND;
+					mArguments = null;
+				}
+			}
+		}	
 
 	}
 
@@ -58,7 +118,7 @@ public class SMTPMessage implements RFC5322 {
 
 			result = result + CRLF;
 			//opcional
-			result=result+"id="+this.mCommandId;
+			//result=result+"id="+this.mCommandId;
 			return result;
 		} else
 			return "Error";
